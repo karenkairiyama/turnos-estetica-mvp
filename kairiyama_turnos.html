@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kairiyama - Reserva de Turnos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilo Japandi básico: Fuente limpia, colores neutros */
+        body {
+            font-family: 'Inter', sans-serif; /* Fuente limpia */
+            background-color: #f4f4f4; /* Fondo gris muy claro */
+        }
+        .japandi-bg {
+            background-color: #ffffff; /* Fondo blanco para contenedores */
+        }
+        .japandi-primary {
+            background-color: #8FBC8F; /* Verde suave como color primario */
+            color: white;
+        }
+        .japandi-primary:hover {
+            background-color: #7A9E7A;
+        }
+        .japandi-secondary {
+             background-color: #D2B48C; /* Beige/Tan como secundario */
+             color: #333;
+        }
+         .japandi-secondary:hover {
+             background-color: #B89A74;
+         }
+        .japandi-border {
+            border-color: #e5e7eb; /* Borde gris claro */
+        }
+        .disabled-day {
+            color: #d1d5db; /* Gris claro para días deshabilitados */
+            pointer-events: none;
+        }
+        .selected-day {
+            background-color: #8FBC8F !important;
+            color: white !important;
+            border-radius: 50%;
+        }
+         .time-slot {
+            cursor: pointer;
+            border: 1px solid #e5e7eb;
+            transition: background-color 0.2s;
+         }
+        .time-slot.selected {
+            background-color: #8FBC8F;
+            color: white;
+            border-color: #8FBC8F;
+        }
+        .time-slot:hover:not(.selected) {
+            background-color: #f0f0f0;
+        }
+        /* Ocultar secciones por defecto */
+        .screen { display: none; }
+        .active-screen { display: block; }
+
+        /* Estilo para el calendario */
+        #calendarGrid div {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 2.5rem; /* Ajusta según necesidad */
+            cursor: pointer;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+         #calendarGrid div:not(.disabled-day):hover {
+             background-color: #f0f0f0;
+         }
+
+    </style>
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 max-w-4xl">
+
+        <div id="appContainer" class="japandi-bg shadow-lg rounded-lg p-6 min-h-[600px] flex flex-col">
+
+            <div class="text-right mb-4">
+                <button id="toggleAdminViewBtn" class="text-sm text-blue-600 hover:underline">Vista Admin</button>
+            </div>
+
+            <div id="clientView" class="active-screen flex-grow flex flex-col">
+                <h1 id="clientTitle" class="text-2xl font-bold text-center mb-6 text-gray-700">[Nombre de la Estética] - Reserva tu Turno</h1>
+
+                <div id="screenSelectService" class="screen active-screen flex-grow flex flex-col">
+                    <p class="text-center mb-4 text-gray-600">Paso 1 de 4: Elige el servicio que deseas</p>
+                    <div id="serviceList" class="space-y-3 overflow-y-auto">
+                        </div>
+                </div>
+
+                <div id="screenSelectProfessional" class="screen flex-grow flex flex-col">
+                    <p class="text-center mb-4 text-gray-600">Paso 2 de 4: Elige un profesional (o déjalo como indiferente)</p>
+                    <p class="text-center mb-4 text-sm text-gray-500">Servicio seleccionado: <strong id="selectedServiceDisplayProf"></strong></p>
+                    <div class="space-y-3 mb-4">
+                        <button onclick="selectProfessional(null)" class="w-full text-left p-3 border japandi-border rounded hover:bg-gray-100 transition">
+                            Cualquiera / Sin preferencia
+                        </button>
+                    </div>
+                    <div id="professionalList" class="space-y-3 overflow-y-auto">
+                        </div>
+                    <div class="mt-auto pt-4">
+                        <button onclick="goToScreen('screenSelectService')" class="w-full p-2 japandi-secondary rounded transition">Atrás</button>
+                    </div>
+                </div>
+
+                <div id="screenSelectDateTime" class="screen flex-grow flex flex-col">
+                    <p class="text-center mb-4 text-gray-600">Paso 3 de 4: Selecciona el día y la hora disponibles</p>
+                    <p class="text-center mb-4 text-sm text-gray-500">Servicio: <strong id="selectedServiceDisplayDate"></strong> | Profesional: <strong id="selectedProfDisplayDate"></strong></p>
+
+                    <div class="mb-4 border japandi-border rounded p-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <button id="prevMonthBtn" class="p-1 japandi-secondary rounded">&lt;</button>
+                            <h3 id="currentMonthYear" class="text-lg font-semibold"></h3>
+                            <button id="nextMonthBtn" class="p-1 japandi-secondary rounded">&gt;</button>
+                        </div>
+                        <div class="grid grid-cols-7 text-center text-xs text-gray-500 mb-1">
+                            <div>Dom</div><div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div>
+                        </div>
+                        <div id="calendarGrid" class="grid grid-cols-7 gap-1 text-center">
+                            </div>
+                    </div>
+
+                    <div class="flex-grow overflow-y-auto">
+                        <h4 class="text-md font-semibold mb-2 text-center">Horarios disponibles para <span id="selectedDateDisplay"></span>:</h4>
+                        <div id="timeSlots" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                            <p id="noSlotsMessage" class="text-center text-gray-500 col-span-full hidden">No hay horarios disponibles para este día.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-auto pt-4">
+                        <button onclick="goToScreen('screenSelectProfessional')" class="w-full p-2 japandi-secondary rounded transition">Atrás</button>
+                    </div>
+                </div>
+
+                <div id="screenConfirm" class="screen flex-grow flex flex-col">
+                    <p class="text-center mb-4 text-gray-600">Paso 4 de 4: Completa tus datos para confirmar tu reserva</p>
+
+                    <div class="border japandi-border rounded p-4 mb-4 bg-gray-50">
+                        <h4 class="font-semibold mb-2 text-center">Resumen de tu Reserva</h4>
+                        <p class="text-sm">Servicio: <strong id="confirmService"></strong></p>
+                        <p class="text-sm">Profesional: <strong id="confirmProfessional"></strong></p>
+                        <p class="text-sm">Fecha: <strong id="confirmDate"></strong></p>
+                        <p class="text-sm">Hora: <strong id="confirmTime"></strong></p>
+                    </div>
+
+                    <form id="bookingForm" class="space-y-3">
+                        <div>
+                            <label for="clientName" class="block text-sm font-medium text-gray-700">Nombre (*)</label>
+                            <input type="text" id="clientName" name="clientName" required class="mt-1 block w-full border japandi-border rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="clientLastName" class="block text-sm font-medium text-gray-700">Apellido (*)</label>
+                            <input type="text" id="clientLastName" name="clientLastName" required class="mt-1 block w-full border japandi-border rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="clientContact" class="block text-sm font-medium text-gray-700">Email o Teléfono (*)</label>
+                            <input type="text" id="clientContact" name="clientContact" required class="mt-1 block w-full border japandi-border rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Para contacto y recordatorios">
+                        </div>
+                        <div class="mt-auto pt-4 space-y-2">
+                             <button type="submit" class="w-full p-3 japandi-primary rounded transition font-semibold">Confirmar Reserva</button>
+                             <button type="button" onclick="goToScreen('screenSelectDateTime')" class="w-full p-2 japandi-secondary rounded transition">Atrás</button>
+                        </div>
+                    </form>
+                </div>
+
+                 <div id="screenSuccess" class="screen flex-grow flex flex-col items-center justify-center text-center">
+                    <svg class="w-16 h-16 text-green-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h2 class="text-2xl font-bold mb-2">¡Turno Confirmado!</h2>
+                    <p class="text-gray-600 mb-4">Tu reserva se realizó con éxito.</p>
+                    <div class="border japandi-border rounded p-4 mb-4 bg-gray-50 w-full max-w-sm">
+                        <p class="text-sm">Servicio: <strong id="successService"></strong></p>
+                        <p class="text-sm">Profesional: <strong id="successProfessional"></strong></p>
+                        <p class="text-sm">Fecha: <strong id="successDate"></strong></p>
+                        <p class="text-sm">Hora: <strong id="successTime"></strong></p>
+                        <p class="text-sm">Nombre: <strong id="successName"></strong></p>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-4">Recibirás un recordatorio (funcionalidad futura).</p>
+                    <div class="space-y-2 w-full max-w-sm">
+                        <button onclick="resetBooking()" class="w-full p-2 japandi-primary rounded transition">Reservar otro turno</button>
+                        </div>
+                </div>
+            </div>
+
+            <div id="adminView" class="screen flex-grow flex flex-col">
+                <h1 class="text-2xl font-bold text-center mb-6 text-gray-700">Panel de Administración</h1>
+
+                <div id="adminLoginScreen" class="screen active-screen flex-grow flex flex-col items-center justify-center">
+                    <h2 class="text-xl mb-4">Acceso Administrador</h2>
+                    <button onclick="loginAdmin()" class="p-3 japandi-primary rounded">Ingresar</button>
+                 </div>
+
+                <div id="adminPanel" class="screen flex-grow flex flex-col">
+                     <div class="mb-6 border-b japandi-border pb-2">
+                        <nav class="flex space-x-4 justify-center">
+                            <button onclick="showAdminScreen('adminScreenDashboard')" class="admin-nav-btn pb-2 border-b-2 border-transparent hover:border-gray-500 text-gray-600 hover:text-gray-800">Turnos</button>
+                            <button onclick="showAdminScreen('adminScreenServices')" class="admin-nav-btn pb-2 border-b-2 border-transparent hover:border-gray-500 text-gray-600 hover:text-gray-800">Servicios</button>
+                            <button onclick="showAdminScreen('adminScreenProfessionals')" class="admin-nav-btn pb-2 border-b-2 border-transparent hover:border-gray-500 text-gray-600 hover:text-gray-800">Profesionales</button>
+                            <button onclick="showAdminScreen('adminScreenHours')" class="admin-nav-btn pb-2 border-b-2 border-transparent hover:border-gray-500 text-gray-600 hover:text-gray-800">Horario</button>
+                            <button onclick="showAdminScreen('adminScreenBlocks')" class="admin-nav-btn pb-2 border-b-2 border-transparent hover:border-gray-500 text-gray-600 hover:text-gray-800">Bloqueos</button>
+                            <button onclick="logoutAdmin()" class="ml-auto text-sm text-red-600 hover:underline">Salir</button>
+                        </nav>
+                    </div>
+
+                    <div class="admin-screen-content flex-grow overflow-y-auto">
+
+                        <div id="adminScreenDashboard" class="admin-screen active-admin-screen">
+                            <h2 class="text-xl font-semibold mb-4">Turnos Agendados</h2>
+                            <div class="mb-4">
+                                <label for="adminDateSelect" class="mr-2">Ver turnos para:</label>
+                                <input type="date" id="adminDateSelect" class="border japandi-border rounded p-1">
+                            </div>
+                            <div id="adminAppointmentsList" class="space-y-2">
+                                <p class="text-gray-500">Selecciona una fecha para ver los turnos.</p>
+                            </div>
+                        </div>
+
+                        <div id="adminScreenServices" class="admin-screen">
+                             <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-semibold">Gestionar Servicios</h2>
+                                <button onclick="openServiceModal()" class="p-2 japandi-primary rounded text-sm font-semibold">+ Añadir Servicio</button>
+                             </div>
+                             <div id="adminServiceList" class="space-y-2">
+                                </div>
+                        </div>
+
+                        <div id="adminScreenProfessionals" class="admin-screen">
+                             <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-semibold">Gestionar Profesionales</h2>
+                                <button onclick="openProfessionalModal()" class="p-2 japandi-primary rounded text-sm font-semibold">+ Añadir Profesional</button>
+                             </div>
+                             <div id="adminProfessionalList" class="space-y-2">
+                                </div>
+                        </div>
+
+                        <div id="adminScreenHours" class="admin-screen">
+                            <h2 class="text-xl font-semibold mb-4">Horario de Atención General</h2>
+                            <p class="text-sm text-gray-600 mb-4">Define el horario general en que la estética está abierta (aplica a todos en MVP).</p>
+                            <form id="adminHoursForm" class="space-y-3">
+                                </form>
+                            <button type="button" onclick="saveBusinessHours()" class="mt-4 p-2 japandi-primary rounded w-full">Guardar Horario</button>
+                        </div>
+
+                        <div id="adminScreenBlocks" class="admin-screen">
+                             <h2 class="text-xl font-semibold mb-4">Bloquear Horarios Específicos</h2>
+                             <form id="adminBlockForm" class="mb-6 p-4 border japandi-border rounded space-y-3">
+                                 <p class="text-sm text-gray-600">Selecciona fecha y hora para bloquear.</p>
+                                 <div>
+                                     <label for="blockDate">Fecha:</label>
+                                     <input type="date" id="blockDate" required class="border japandi-border rounded p-1 ml-2">
+                                 </div>
+                                 <div>
+                                     <label for="blockStartTime">Desde:</label>
+                                     <input type="time" id="blockStartTime" required class="border japandi-border rounded p-1 ml-2">
+                                     <label for="blockEndTime" class="ml-4">Hasta:</label>
+                                     <input type="time" id="blockEndTime" required class="border japandi-border rounded p-1 ml-2">
+                                 </div>
+                                  <div>
+                                     <label for="blockReason">Motivo (Opcional):</label>
+                                     <input type="text" id="blockReason" class="border japandi-border rounded p-1 ml-2 w-full sm:w-auto">
+                                 </div>
+                                 <button type="submit" class="p-2 japandi-primary rounded w-full sm:w-auto">Añadir Bloqueo</button>
+                             </form>
+                             <h3 class="text-lg font-semibold mb-2">Bloqueos Activos</h3>
+                             <div id="adminBlocksList" class="space-y-2">
+                                </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="serviceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center hidden">
+                 <div class="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+                     <h3 id="serviceModalTitle" class="text-lg font-medium leading-6 text-gray-900 mb-4">Añadir Servicio</h3>
+                     <form id="serviceForm" class="space-y-3">
+                         <input type="hidden" id="serviceId">
+                         <div>
+                             <label for="serviceName" class="block text-sm font-medium text-gray-700">Nombre del Servicio (*)</label>
+                             <input type="text" id="serviceName" required class="mt-1 block w-full border japandi-border rounded-md shadow-sm p-2">
+                         </div>
+                         <div>
+                             <label for="serviceDuration" class="block text-sm font-medium text-gray-700">Duración (minutos) (*)</label>
+                             <input type="number" id="serviceDuration" required min="5" step="5" class="mt-1 block w-full border japandi-border rounded-md shadow-sm p-2">
+                         </div>
+                         <div class="flex justify-end space-x-2 pt-4">
+                             <button type="button" onclick="closeServiceModal()" class="p-2 japandi-secondary rounded">Cancelar</button>
+                             <button type="submit" class="p-2 japandi-primary rounded">Guardar</button>
+                         </div>
+                     </form>
+                 </div>
+             </div>
+
+            <div id="professionalModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center hidden">
+                 <div class="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+                     <h3 id="professionalModalTitle" class="text-lg font-medium leading-6 text-gray-900 mb-4">Añadir Profesional</h3>
+                     <form id="professionalForm" class="space-y-3">
+                         <input type="hidden" id="professionalId">
+                         <div>
+                             <label for="professionalName" class="block text-sm font-medium text-gray-700">Nombre del Profesional (*)</label>
+                             <input type="text" id="professionalName" required class="mt-1 block w-full border japandi-border rounded-md shadow-sm p-2">
+                         </div>
+                         <div class="flex justify-end space-x-2 pt-4">
+                             <button type="button" onclick="closeProfessionalModal()" class="p-2 japandi-secondary rounded">Cancelar</button>
+                             <button type="submit" class="p-2 japandi-primary rounded">Guardar</button>
+                         </div>
+                     </form>
+                 </div>
+             </div>
+
+        </div> </div> <script>
+        // --- Mock Data (Simulación de Backend) ---
+        let services = [
+            { id: 1, name: "Corte de Dama", duration: 60 },
+            { id: 2, name: "Manicura Completa", duration: 45 },
+            { id: 3, name: "Depilación Pierna Entera", duration: 50 },
+            { id: 4, name: "Limpieza Facial", duration: 75 },
+            { id: 5, name: "Masaje Relajante", duration: 60 }
+        ];
+
+        let professionals = [
+            { id: 101, name: "Ana" },
+            { id: 102, name: "Lucía" },
+            { id: 103, name: "Carla" }
+        ];
+
+        // Horario general: Lunes a Viernes 9-18, Sábados 9-13
+        let businessHours = {
+            1: { start: '09:00', end: '18:00' }, // Lunes
+            2: { start: '09:00', end: '18:00' }, // Martes
+            3: { start: '09:00', end: '18:00' }, // Miércoles
+            4: { start: '09:00', end: '18:00' }, // Jueves
+            5: { start: '09:00', end: '18:00' }, // Viernes
+            6: { start: '09:00', end: '13:00' }, // Sábado
+            0: null // Domingo cerrado
+        };
+
+        // Turnos existentes (simulación)
+        let appointments = [
+             // Formato: { date: 'YYYY-MM-DD', time: 'HH:MM', serviceId: X, professionalId: Y, duration: Z, clientName: '...' }
+            // Ejemplo: { date: '2025-05-05', time: '10:00', serviceId: 1, professionalId: 101, duration: 60, clientName: 'Cliente Ejemplo' },
+        ];
+
+        // Bloqueos (simulación)
+        let blockedTimes = [
+            // Formato: { date: 'YYYY-MM-DD', startTime: 'HH:MM', endTime: 'HH:MM', reason: '...' }
+            // Ejemplo: { date: '2025-05-06', startTime: '13:00', endTime: '14:00', reason: 'Almuerzo' },
+        ];
+
+
+        // --- Estado de la Aplicación ---
+        let currentView = 'client'; // 'client' or 'admin'
+        let currentScreen = 'screenSelectService'; // ID de la pantalla activa del cliente
+        let currentAdminScreen = 'adminLoginScreen'; // ID pantalla admin activa
+        let isAdminLoggedIn = false;
+
+        let booking = {
+            service: null, // { id, name, duration }
+            professional: null, // { id, name } or null for 'Indiferente'
+            date: null, // 'YYYY-MM-DD'
+            time: null // 'HH:MM'
+        };
+
+        let calendarState = {
+            currentDate: new Date(), // Fecha para mostrar el mes actual
+            selectedDateObj: null // Objeto Date de la fecha seleccionada
+        };
+
+        // --- Funciones de Navegación ---
+        function goToScreen(screenId) {
+            document.querySelectorAll('#clientView .screen').forEach(screen => {
+                screen.classList.remove('active-screen');
+            });
+            document.getElementById(screenId).classList.add('active-screen');
+            currentScreen = screenId;
+            window.scrollTo(0, 0); // Scroll al inicio
+        }
+
+         function showAdminScreen(screenId) {
+            document.querySelectorAll('#adminPanel .admin-screen').forEach(screen => {
+                screen.classList.remove('active-admin-screen');
+                 screen.style.display = 'none'; // Ocultar todas
+            });
+             const targetScreen = document.getElementById(screenId);
+             if(targetScreen) {
+                targetScreen.classList.add('active-admin-screen');
+                 targetScreen.style.display = 'block'; // Mostrar la activa
+             }
+            currentAdminScreen = screenId;
+
+             // Resaltar botón de navegación activo
+             document.querySelectorAll('.admin-nav-btn').forEach(btn => {
+                 btn.classList.remove('border-gray-800', 'text-gray-900', 'font-semibold');
+                 btn.classList.add('border-transparent', 'text-gray-600');
+                 if(btn.getAttribute('onclick') === `showAdminScreen('${screenId}')`) {
+                     btn.classList.add('border-gray-800', 'text-gray-900', 'font-semibold');
+                     btn.classList.remove('border-transparent', 'text-gray-600');
+                 }
+             });
+
+            // Cargar datos específicos de la pantalla admin
+            if (screenId === 'adminScreenDashboard') loadAdminAppointments();
+            if (screenId === 'adminScreenServices') loadAdminServices();
+            if (screenId === 'adminScreenProfessionals') loadAdminProfessionals();
+            if (screenId === 'adminScreenHours') loadAdminHours();
+            if (screenId === 'adminScreenBlocks') loadAdminBlocks();
+         }
+
+        // --- Funciones Flujo Cliente ---
+        function loadServices() {
+            const list = document.getElementById('serviceList');
+            list.innerHTML = ''; // Limpiar lista
+            services.forEach(service => {
+                const button = document.createElement('button');
+                button.className = 'w-full text-left p-4 border japandi-border rounded hover:bg-gray-100 transition';
+                button.innerHTML = `
+                    <span class="font-semibold">${service.name}</span>
+                    <span class="text-sm text-gray-500 block">${service.duration} min</span>
+                `;
+                button.onclick = () => selectService(service);
+                list.appendChild(button);
+            });
+        }
+
+        function selectService(service) {
+            booking.service = service;
+            document.getElementById('selectedServiceDisplayProf').textContent = service.name;
+            document.getElementById('selectedServiceDisplayDate').textContent = service.name;
+            loadProfessionals(); // Cargar profesionales para la siguiente pantalla
+            goToScreen('screenSelectProfessional');
+        }
+
+        function loadProfessionals() {
+            const list = document.getElementById('professionalList');
+            list.innerHTML = ''; // Limpiar lista
+            professionals.forEach(prof => {
+                const button = document.createElement('button');
+                button.className = 'w-full text-left p-3 border japandi-border rounded hover:bg-gray-100 transition';
+                button.textContent = prof.name;
+                button.onclick = () => selectProfessional(prof);
+                list.appendChild(button);
+            });
+        }
+
+        function selectProfessional(professional) {
+            booking.professional = professional;
+            const profName = professional ? professional.name : 'Indiferente';
+            document.getElementById('selectedProfDisplayDate').textContent = profName;
+            // Resetear fecha y hora seleccionadas si se cambia profesional
+            booking.date = null;
+            booking.time = null;
+            calendarState.selectedDateObj = null;
+            renderCalendar(); // Renderizar calendario para la nueva selección
+            clearTimeSlots();
+            goToScreen('screenSelectDateTime');
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            const monthYearEl = document.getElementById('currentMonthYear');
+            grid.innerHTML = ''; // Limpiar calendario
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Ignorar hora actual para comparación de días
+
+            const currentMonth = calendarState.currentDate.getMonth();
+            const currentYear = calendarState.currentDate.getFullYear();
+
+            monthYearEl.textContent = `${calendarState.currentDate.toLocaleString('es-ES', { month: 'long' })} ${currentYear}`;
+
+            const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+            const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+            const firstDayWeekday = firstDayOfMonth.getDay(); // 0=Domingo, 1=Lunes...
+
+            // Añadir días vacíos al inicio
+            for (let i = 0; i < firstDayWeekday; i++) {
+                grid.appendChild(document.createElement('div'));
+            }
+
+            // Añadir días del mes
+            for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                const dayEl = document.createElement('div');
+                dayEl.textContent = day;
+                const loopDate = new Date(currentYear, currentMonth, day);
+                const loopDateStr = loopDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
+                // Verificar si el día está cerrado por horario general o es pasado
+                const dayOfWeek = loopDate.getDay();
+                const isOpen = businessHours[dayOfWeek] !== null;
+                const isPast = loopDate < today;
+
+                if (isOpen && !isPast) {
+                    dayEl.onclick = () => selectDate(loopDate);
+                    if (booking.date === loopDateStr) {
+                        dayEl.classList.add('selected-day');
+                    }
+                } else {
+                    dayEl.classList.add('disabled-day');
+                }
+                grid.appendChild(dayEl);
+            }
+        }
+
+        function changeMonth(offset) {
+            calendarState.currentDate.setMonth(calendarState.currentDate.getMonth() + offset);
+            renderCalendar();
+            clearTimeSlots(); // Limpiar horarios al cambiar mes
+        }
+
+        document.getElementById('prevMonthBtn').onclick = () => changeMonth(-1);
+        document.getElementById('nextMonthBtn').onclick = () => changeMonth(1);
+
+        function selectDate(dateObj) {
+            booking.date = dateObj.toISOString().split('T')[0]; // Guardar como YYYY-MM-DD
+            calendarState.selectedDateObj = dateObj;
+            document.getElementById('selectedDateDisplay').textContent = dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+            renderCalendar(); // Re-renderizar para mostrar selección
+            loadAvailableTimeSlots(booking.date);
+        }
+
+        function clearTimeSlots() {
+            const slotsContainer = document.getElementById('timeSlots');
+            slotsContainer.innerHTML = '';
+             document.getElementById('noSlotsMessage').classList.add('hidden');
+             document.getElementById('selectedDateDisplay').textContent = '...';
+            booking.time = null;
+        }
+
+        function loadAvailableTimeSlots(dateStr) {
+            const slotsContainer = document.getElementById('timeSlots');
+            slotsContainer.innerHTML = ''; // Limpiar horarios
+            const noSlotsMsg = document.getElementById('noSlotsMessage');
+            noSlotsMsg.classList.add('hidden');
+
+            if (!booking.service || !dateStr) return;
+
+            const dayOfWeek = new Date(dateStr + 'T00:00:00').getDay(); // Asegurar que se tome la fecha correcta
+            const hours = businessHours[dayOfWeek];
+
+            if (!hours) {
+                noSlotsMsg.classList.remove('hidden');
+                return; // Día cerrado
+            }
+
+            const serviceDuration = booking.service.duration;
+            const availableSlots = [];
+
+            // Convertir horas a minutos desde medianoche para facilitar cálculos
+            const startTimeInMinutes = timeToMinutes(hours.start);
+            const endTimeInMinutes = timeToMinutes(hours.end);
+
+            // Obtener turnos y bloqueos para el día seleccionado
+            const todaysAppointments = appointments.filter(a => a.date === dateStr);
+            const todaysBlocks = blockedTimes.filter(b => b.date === dateStr);
+
+            // Iterar en intervalos (ej: cada 15 minutos)
+            const interval = 15;
+            for (let t = startTimeInMinutes; t < endTimeInMinutes; t += interval) {
+                const slotEndTime = t + serviceDuration;
+
+                // Verificar si el slot termina después del cierre
+                if (slotEndTime > endTimeInMinutes) break;
+
+                // Verificar conflictos con turnos existentes
+                let conflict = false;
+                for (const app of todaysAppointments) {
+                    // Solo considerar conflicto si el profesional es el mismo O si se eligió "Indiferente"
+                    if (booking.professional && app.professionalId !== booking.professional.id) continue;
+
+                    const appStart = timeToMinutes(app.time);
+                    const appEnd = appStart + app.duration;
+                    // Conflicto si el nuevo slot se superpone con uno existente
+                    if (t < appEnd && slotEndTime > appStart) {
+                        conflict = true;
+                        break;
+                    }
+                }
+                if (conflict) continue;
+
+                // Verificar conflictos con bloqueos
+                for (const block of todaysBlocks) {
+                    const blockStart = timeToMinutes(block.startTime);
+                    const blockEnd = timeToMinutes(block.endTime);
+                    if (t < blockEnd && slotEndTime > blockStart) {
+                        conflict = true;
+                        break;
+                    }
+                }
+                if (conflict) continue;
+
+                // Si no hay conflicto, añadir el slot
+                availableSlots.push(minutesToTime(t));
+            }
+
+
+            if (availableSlots.length === 0) {
+                noSlotsMsg.classList.remove('hidden');
+            } else {
+                availableSlots.forEach(time => {
+                    const button = document.createElement('button');
+                    button.className = 'time-slot p-2 rounded text-sm';
+                    button.textContent = time;
+                    if (booking.time === time) {
+                        button.classList.add('selected');
+                    }
+                    button.onclick = () => selectTime(time);
+                    slotsContainer.appendChild(button);
+                });
+            }
+        }
+
+        function timeToMinutes(time) { // "HH:MM" -> minutes
+            const [hours, minutes] = time.split(':').map(Number);
+            return hours * 60 + minutes;
+        }
+
+        function minutesToTime(minutes) { // minutes -> "HH:MM"
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        }
+
+
+        function selectTime(time) {
+            booking.time = time;
+            // Actualizar visualmente la selección de hora
+             document.querySelectorAll('#timeSlots .time-slot').forEach(btn => {
+                 btn.classList.remove('selected');
+                 if (btn.textContent === time) {
+                     btn.classList.add('selected');
+                 }
+             });
+            // Preparar pantalla de confirmación
+            prepareConfirmationScreen();
+            goToScreen('screenConfirm');
+        }
+
+        function prepareConfirmationScreen() {
+            document.getElementById('confirmService').textContent = booking.service.name;
+            document.getElementById('confirmProfessional').textContent = booking.professional ? booking.professional.name : 'Indiferente';
+            document.getElementById('confirmDate').textContent = new Date(booking.date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            document.getElementById('confirmTime').textContent = booking.time;
+            // Limpiar formulario por si acaso
+            document.getElementById('bookingForm').reset();
+        }
+
+        document.getElementById('bookingForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Evitar envío real del formulario
+            const clientName = document.getElementById('clientName').value;
+            const clientLastName = document.getElementById('clientLastName').value;
+            const clientContact = document.getElementById('clientContact').value;
+
+            // Simular guardado de la reserva
+            const newAppointment = {
+                date: booking.date,
+                time: booking.time,
+                serviceId: booking.service.id,
+                professionalId: booking.professional ? booking.professional.id : null,
+                duration: booking.service.duration,
+                clientName: `${clientName} ${clientLastName}`,
+                clientContact: clientContact // Añadido para referencia
+            };
+            appointments.push(newAppointment);
+            console.log("Nueva reserva añadida (simulado):", newAppointment);
+            console.log("Todas las reservas:", appointments);
+
+
+            // Mostrar pantalla de éxito
+            document.getElementById('successService').textContent = booking.service.name;
+            document.getElementById('successProfessional').textContent = booking.professional ? booking.professional.name : 'Indiferente';
+            document.getElementById('successDate').textContent = new Date(booking.date + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            document.getElementById('successTime').textContent = booking.time;
+            document.getElementById('successName').textContent = `${clientName} ${clientLastName}`;
+
+            goToScreen('screenSuccess');
+        });
+
+        function resetBooking() {
+            booking = { service: null, professional: null, date: null, time: null };
+            calendarState.selectedDateObj = null;
+            renderCalendar(); // Resetear calendario
+            goToScreen('screenSelectService');
+        }
+
+
+        // --- Funciones Vista Admin ---
+
+        document.getElementById('toggleAdminViewBtn').addEventListener('click', () => {
+            const clientView = document.getElementById('clientView');
+            const adminView = document.getElementById('adminView');
+            const button = document.getElementById('toggleAdminViewBtn');
+
+            if (currentView === 'client') {
+                clientView.classList.remove('active-screen');
+                adminView.classList.add('active-screen');
+                currentView = 'admin';
+                button.textContent = 'Vista Cliente';
+                 // Mostrar login si no está logueado, o panel si sí lo está
+                 if (!isAdminLoggedIn) {
+                     showAdminScreen('adminLoginScreen');
+                 } else {
+                     showAdminScreen('adminScreenDashboard'); // O la última pantalla vista
+                 }
+            } else {
+                adminView.classList.remove('active-screen');
+                clientView.classList.add('active-screen');
+                currentView = 'client';
+                button.textContent = 'Vista Admin';
+                goToScreen('screenSelectService'); // Volver al inicio del cliente
+            }
+        });
+
+         function loginAdmin() {
+             isAdminLoggedIn = true;
+             document.getElementById('adminLoginScreen').classList.remove('active-screen');
+             document.getElementById('adminLoginScreen').style.display = 'none';
+             document.getElementById('adminPanel').classList.add('active-screen');
+             document.getElementById('adminPanel').style.display = 'flex'; // Asegurar que sea flex
+             showAdminScreen('adminScreenDashboard'); // Ir al dashboard por defecto
+         }
+
+         function logoutAdmin() {
+             isAdminLoggedIn = false;
+             document.getElementById('adminPanel').classList.remove('active-screen');
+              document.getElementById('adminPanel').style.display = 'none';
+             document.getElementById('adminLoginScreen').classList.add('active-screen');
+             document.getElementById('adminLoginScreen').style.display = 'flex'; // Asegurar que sea flex
+             currentAdminScreen = 'adminLoginScreen';
+         }
+
+        // Cargar Turnos Admin
+        function loadAdminAppointments(filterDate = null) {
+            const listContainer = document.getElementById('adminAppointmentsList');
+            listContainer.innerHTML = ''; // Limpiar
+
+            const dateToFilter = filterDate || document.getElementById('adminDateSelect').value || new Date().toISOString().split('T')[0];
+             // Actualizar el input si se pasó una fecha o es la primera carga
+             if (!filterDate && !document.getElementById('adminDateSelect').value) {
+                 document.getElementById('adminDateSelect').value = dateToFilter;
+             }
+
+
+            const dailyAppointments = appointments
+                .filter(a => a.date === dateToFilter)
+                .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time)); // Ordenar por hora
+
+            if (dailyAppointments.length === 0) {
+                listContainer.innerHTML = '<p class="text-gray-500">No hay turnos agendados para esta fecha.</p>';
+                return;
+            }
+
+            dailyAppointments.forEach(app => {
+                const service = services.find(s => s.id === app.serviceId);
+                const professional = professionals.find(p => p.id === app.professionalId);
+                const div = document.createElement('div');
+                div.className = 'p-3 border japandi-border rounded bg-gray-50 text-sm';
+                div.innerHTML = `
+                    <p><strong>Hora:</strong> ${app.time}</p>
+                    <p><strong>Cliente:</strong> ${app.clientName || 'N/A'}</p>
+                    <p><strong>Servicio:</strong> ${service ? service.name : 'Desconocido'}</p>
+                    <p><strong>Profesional:</strong> ${professional ? professional.name : 'Indiferente'}</p>
+                    <p><strong>Contacto:</strong> ${app.clientContact || 'N/A'}</p>
+                    `;
+                listContainer.appendChild(div);
+            });
+        }
+        // Event listener para el selector de fecha admin
+        document.getElementById('adminDateSelect').addEventListener('change', (e) => {
+            loadAdminAppointments(e.target.value);
+        });
+
+
+        // Gestión Servicios Admin
+        function loadAdminServices() {
+            const listContainer = document.getElementById('adminServiceList');
+            listContainer.innerHTML = '';
+            services.forEach(s => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center p-3 border japandi-border rounded bg-gray-50';
+                div.innerHTML = `
+                    <div>
+                        <span class="font-semibold">${s.name}</span>
+                        <span class="text-sm text-gray-500 block">${s.duration} min</span>
+                    </div>
+                    <div class="space-x-2">
+                        <button onclick="openServiceModal(${s.id})" class="text-blue-600 hover:underline text-sm">Editar</button>
+                        <button onclick="deleteService(${s.id})" class="text-red-600 hover:underline text-sm">Eliminar</button>
+                    </div>
+                `;
+                listContainer.appendChild(div);
+            });
+        }
+
+        function openServiceModal(serviceId = null) {
+            const modal = document.getElementById('serviceModal');
+            const form = document.getElementById('serviceForm');
+            const title = document.getElementById('serviceModalTitle');
+            form.reset(); // Limpiar formulario
+            document.getElementById('serviceId').value = '';
+
+            if (serviceId) {
+                const service = services.find(s => s.id === serviceId);
+                if (service) {
+                    title.textContent = 'Editar Servicio';
+                    document.getElementById('serviceId').value = service.id;
+                    document.getElementById('serviceName').value = service.name;
+                    document.getElementById('serviceDuration').value = service.duration;
+                }
+            } else {
+                title.textContent = 'Añadir Servicio';
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function closeServiceModal() {
+            document.getElementById('serviceModal').classList.add('hidden');
+        }
+
+        document.getElementById('serviceForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('serviceId').value;
+            const name = document.getElementById('serviceName').value;
+            const duration = parseInt(document.getElementById('serviceDuration').value);
+
+            if (id) { // Editar
+                const index = services.findIndex(s => s.id == id);
+                if (index !== -1) {
+                    services[index] = { ...services[index], name, duration };
+                }
+            } else { // Añadir
+                const newId = services.length > 0 ? Math.max(...services.map(s => s.id)) + 1 : 1;
+                services.push({ id: newId, name, duration });
+            }
+            loadAdminServices(); // Recargar lista
+            loadServices(); // Recargar lista cliente también
+            closeServiceModal();
+        });
+
+        function deleteService(serviceId) {
+            if (confirm(`¿Estás seguro de eliminar este servicio?`)) {
+                services = services.filter(s => s.id !== serviceId);
+                loadAdminServices();
+                loadServices(); // Recargar lista cliente
+            }
+        }
+
+        // Gestión Profesionales Admin (similar a servicios)
+         function loadAdminProfessionals() {
+            const listContainer = document.getElementById('adminProfessionalList');
+            listContainer.innerHTML = '';
+            professionals.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center p-3 border japandi-border rounded bg-gray-50';
+                div.innerHTML = `
+                    <div>
+                        <span class="font-semibold">${p.name}</span>
+                    </div>
+                    <div class="space-x-2">
+                        <button onclick="openProfessionalModal(${p.id})" class="text-blue-600 hover:underline text-sm">Editar</button>
+                        <button onclick="deleteProfessional(${p.id})" class="text-red-600 hover:underline text-sm">Eliminar</button>
+                    </div>
+                `;
+                listContainer.appendChild(div);
+            });
+        }
+
+        function openProfessionalModal(professionalId = null) {
+            const modal = document.getElementById('professionalModal');
+            const form = document.getElementById('professionalForm');
+            const title = document.getElementById('professionalModalTitle');
+            form.reset();
+            document.getElementById('professionalId').value = '';
+
+            if (professionalId) {
+                const prof = professionals.find(p => p.id === professionalId);
+                if (prof) {
+                    title.textContent = 'Editar Profesional';
+                    document.getElementById('professionalId').value = prof.id;
+                    document.getElementById('professionalName').value = prof.name;
+                }
+            } else {
+                title.textContent = 'Añadir Profesional';
+            }
+            modal.classList.remove('hidden');
+        }
+
+         function closeProfessionalModal() {
+            document.getElementById('professionalModal').classList.add('hidden');
+        }
+
+        document.getElementById('professionalForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('professionalId').value;
+            const name = document.getElementById('professionalName').value;
+
+            if (id) { // Editar
+                const index = professionals.findIndex(p => p.id == id);
+                if (index !== -1) {
+                    professionals[index] = { ...professionals[index], name };
+                }
+            } else { // Añadir
+                const newId = professionals.length > 0 ? Math.max(...professionals.map(p => p.id)) + 1 : 101;
+                professionals.push({ id: newId, name });
+            }
+            loadAdminProfessionals();
+            loadProfessionals(); // Recargar lista cliente
+            closeProfessionalModal();
+        });
+
+        function deleteProfessional(professionalId) {
+             if (confirm(`¿Estás seguro de eliminar este profesional?`)) {
+                professionals = professionals.filter(p => p.id !== professionalId);
+                loadAdminProfessionals();
+                loadProfessionals(); // Recargar lista cliente
+            }
+        }
+
+        // Gestión Horario Admin
+        function loadAdminHours() {
+            const form = document.getElementById('adminHoursForm');
+            form.innerHTML = ''; // Limpiar
+            const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+            daysOfWeek.forEach((dayName, index) => {
+                const dayData = businessHours[index];
+                const div = document.createElement('div');
+                div.className = 'flex items-center space-x-4 p-2 border-b japandi-border';
+                div.innerHTML = `
+                    <label class="w-24 font-medium">${dayName}:</label>
+                    <input type="checkbox" id="dayActive_${index}" ${dayData ? 'checked' : ''} onchange="toggleDayHours(${index})">
+                    <label for="dayActive_${index}" class="text-sm">Atiende</label>
+                    <div id="dayHours_${index}" class="${dayData ? '' : 'hidden'} flex items-center space-x-2">
+                        <label for="dayStart_${index}" class="text-sm">Desde:</label>
+                        <input type="time" id="dayStart_${index}" value="${dayData?.start || '09:00'}" class="border japandi-border rounded p-1 w-24">
+                        <label for="dayEnd_${index}" class="text-sm">Hasta:</label>
+                        <input type="time" id="dayEnd_${index}" value="${dayData?.end || '18:00'}" class="border japandi-border rounded p-1 w-24">
+                    </div>
+                `;
+                form.appendChild(div);
+            });
+        }
+
+        function toggleDayHours(dayIndex) {
+            const checkbox = document.getElementById(`dayActive_${dayIndex}`);
+            const hoursDiv = document.getElementById(`dayHours_${dayIndex}`);
+            if (checkbox.checked) {
+                hoursDiv.classList.remove('hidden');
+            } else {
+                hoursDiv.classList.add('hidden');
+            }
+        }
+
+        function saveBusinessHours() {
+            const newHours = {};
+            for (let i = 0; i < 7; i++) {
+                const checkbox = document.getElementById(`dayActive_${i}`);
+                if (checkbox.checked) {
+                    const start = document.getElementById(`dayStart_${i}`).value;
+                    const end = document.getElementById(`dayEnd_${i}`).value;
+                    if (start && end && timeToMinutes(start) < timeToMinutes(end)) {
+                         newHours[i] = { start, end };
+                    } else {
+                        alert(`Horario inválido para el día ${i}. Asegúrate que la hora de inicio sea anterior a la de fin.`);
+                        // Podríamos revertir o no guardar, por simplicidad guardamos lo válido
+                        newHours[i] = null; // O mantener el anterior si se prefiere
+                    }
+                } else {
+                    newHours[i] = null;
+                }
+            }
+            businessHours = newHours;
+            console.log("Horario guardado:", businessHours);
+            alert("Horario de atención guardado.");
+        }
+
+
+        // Gestión Bloqueos Admin
+         function loadAdminBlocks() {
+            const listContainer = document.getElementById('adminBlocksList');
+            listContainer.innerHTML = '';
+            const sortedBlocks = [...blockedTimes].sort((a,b) => new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime));
+
+            if (sortedBlocks.length === 0) {
+                 listContainer.innerHTML = '<p class="text-gray-500">No hay bloqueos definidos.</p>';
+                 return;
+            }
+
+            sortedBlocks.forEach((block, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center p-3 border japandi-border rounded bg-gray-100';
+                div.innerHTML = `
+                    <div>
+                        <span class="font-semibold">${new Date(block.date + 'T00:00:00').toLocaleDateString('es-ES')}</span>
+                        <span class="text-sm text-gray-600"> de ${block.startTime} a ${block.endTime}</span>
+                        ${block.reason ? `<span class="text-xs text-gray-500 block">Motivo: ${block.reason}</span>` : ''}
+                    </div>
+                    <button onclick="deleteBlock(${index})" class="text-red-600 hover:underline text-sm">Eliminar</button>
+                `;
+                listContainer.appendChild(div);
+            });
+        }
+
+        document.getElementById('adminBlockForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const date = document.getElementById('blockDate').value;
+            const startTime = document.getElementById('blockStartTime').value;
+            const endTime = document.getElementById('blockEndTime').value;
+            const reason = document.getElementById('blockReason').value;
+
+            if (!date || !startTime || !endTime) {
+                alert("Por favor, completa fecha y horas para el bloqueo.");
+                return;
+            }
+            if(timeToMinutes(startTime) >= timeToMinutes(endTime)) {
+                 alert("La hora de inicio del bloqueo debe ser anterior a la hora de fin.");
+                 return;
+            }
+
+            blockedTimes.push({ date, startTime, endTime, reason });
+            console.log("Bloqueo añadido:", blockedTimes);
+            loadAdminBlocks(); // Recargar lista
+            document.getElementById('adminBlockForm').reset(); // Limpiar form
+        });
+
+        function deleteBlock(index) {
+             if (confirm(`¿Estás seguro de eliminar este bloqueo?`)) {
+                 // Usamos el índice porque no tenemos IDs únicos en mock data
+                 blockedTimes.splice(index, 1);
+                 loadAdminBlocks();
+             }
+        }
+
+
+        // --- Inicialización ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Configuración inicial cliente
+            loadServices();
+            renderCalendar();
+            clearTimeSlots();
+            goToScreen('screenSelectService'); // Empezar en selección de servicio
+
+            // Configuración inicial admin (oculto)
+            // Las cargas se hacen al mostrar cada pantalla
+        });
+
+    </script>
+
+</body>
+</html>
